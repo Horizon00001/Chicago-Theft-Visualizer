@@ -342,11 +342,11 @@ export function drawDistrictChoroplethMap(containerId, geojson, data, valueKey, 
 
     svg.call(zoom);
 
-    mapGroup.append("g").selectAll("path").data(features).enter().append("path").attr("data-district-shape", "1").attr("data-district", feature => String(feature.properties?.district || "").trim().replace(/^0+/, '')).attr("d", path).attr("fill", feature => {
+    const districtShapes = mapGroup.append("g").selectAll("path").data(features).enter().append("path").attr("data-district-shape", "1").attr("data-district", feature => String(feature.properties?.district || "").trim().replace(/^0+/, '')).attr("d", path).attr("fill", feature => {
         const district = String(feature.properties?.district || "").trim().replace(/^0+/, '');
         const value = dataMap.get(district);
         return Number.isFinite(value) ? colorScale(value) : "#e2e8f0";
-    }).attr("stroke", "#ffffff").attr("stroke-width", 1.5).attr("vector-effect", "non-scaling-stroke").attr("filter", `url(#shadow-${containerId})`).style("cursor", "pointer")
+    }).attr("stroke", "#ffffff").attr("stroke-width", 1.5).attr("vector-effect", "non-scaling-stroke").attr("filter", `url(#shadow-${containerId})`).style("cursor", "pointer").style("opacity", 0)
     .on("mouseover", (e, feature) => {
         const district = String(feature.properties?.district || "").trim().replace(/^0+/, '');
         const districtName = String(feature.properties?.district_name || district).trim();
@@ -358,9 +358,26 @@ export function drawDistrictChoroplethMap(containerId, geojson, data, valueKey, 
         options.onSelect?.(district);
     });
 
-    mapGroup.append("g").selectAll("text").data(labelFeatures).enter().append("text").attr("data-district-label", "1").attr("data-district", item => item.district).attr("x", item => item.centroid[0]).attr("y", item => item.centroid[1] + 4).attr("text-anchor", "middle").style("font-size", "12px").style("font-weight", "800").style("pointer-events", "none").style("fill", item => item.value >= (minValue + maxValue) * 0.4 ? "#ffffff" : "#4c1d95").attr("stroke", item => item.value >= (minValue + maxValue) * 0.4 ? "#4c1d95" : "#ffffff").attr("stroke-width", 2).attr("paint-order", "stroke").text(item => item.district);
+    districtShapes
+        .attr("transform", feature => {
+            const [cx, cy] = path.centroid(feature);
+            return Number.isFinite(cx) && Number.isFinite(cy) ? `translate(${cx}, ${cy}) scale(0.92) translate(${-cx}, ${-cy})` : null;
+        })
+        .transition()
+        .duration(850)
+        .delay((d, i) => i * 28)
+        .ease(d3.easeCubicOut)
+        .style("opacity", 1)
+        .attr("transform", null);
 
-    const legend = svg.append("g").attr("transform", `translate(${width - 150}, 40)`);
+    mapGroup.append("g").selectAll("text").data(labelFeatures).enter().append("text").attr("data-district-label", "1").attr("data-district", item => item.district).attr("x", item => item.centroid[0]).attr("y", item => item.centroid[1] + 4).attr("text-anchor", "middle").style("font-size", "12px").style("font-weight", "800").style("pointer-events", "none").style("fill", item => item.value >= (minValue + maxValue) * 0.4 ? "#ffffff" : "#4c1d95").attr("stroke", item => item.value >= (minValue + maxValue) * 0.4 ? "#4c1d95" : "#ffffff").attr("stroke-width", 2).attr("paint-order", "stroke").style("opacity", 0).text(item => item.district)
+        .transition()
+        .duration(500)
+        .delay((d, i) => 240 + i * 18)
+        .ease(d3.easeCubicOut)
+        .style("opacity", 1);
+
+    const legend = svg.append("g").attr("transform", `translate(${width - 150}, 40)`).style("opacity", 0);
     legend.append("rect").attr("width", 110).attr("height", 184).attr("rx", 18).attr("fill", "#ffffff").attr("fill-opacity", 0.9).attr("stroke", "#e2e8f0");
     legend.append("text").attr("x", 18).attr("y", 26).style("font-size", "13px").style("font-weight", "700").style("fill", "#334155").text(`${valueLabel}热度`);
     legend.append("rect").attr("x", 22).attr("y", 42).attr("width", 18).attr("height", 104).attr("rx", 9).attr("fill", `url(#legend-gradient-${containerId})`);
@@ -368,6 +385,7 @@ export function drawDistrictChoroplethMap(containerId, geojson, data, valueKey, 
     legend.append("text").attr("x", 52).attr("y", 146).style("font-size", "12px").style("fill", "#475569").text(`${Math.round(minValue).toLocaleString()} 件`);
     legend.append("rect").attr("x", 22).attr("y", 158).attr("width", 18).attr("height", 18).attr("rx", 4).attr("fill", "#e2e8f0");
     legend.append("text").attr("x", 52).attr("y", 171).style("font-size", "12px").style("fill", "#64748b").text("暂无统计");
+    legend.transition().duration(600).delay(280).ease(d3.easeCubicOut).style("opacity", 1);
 }
 
 export async function drawAreaChart(id, api, xKey, yKey, color) {
@@ -624,7 +642,11 @@ export function setDistrictFollowState(mapContainerId, listContainerId, activeDi
         const district = this.getAttribute('data-district');
         const isActive = district === activeDistrict, isLocked = district === lockedDistrict;
         const el = d3.select(this);
-        el.style('opacity', activeDistrict ? (isActive ? 1 : 0.72) : 1)
+        el.interrupt()
+          .transition()
+          .duration(260)
+          .ease(d3.easeCubicOut)
+          .style('opacity', activeDistrict ? (isActive ? 1 : 0.72) : 1)
           .attr('stroke', isActive ? '#4c1d95' : isLocked ? '#7c3aed' : '#ffffff')
           .attr('stroke-width', isActive ? 3 : isLocked ? 2.2 : 1.5);
         
@@ -636,7 +658,10 @@ export function setDistrictFollowState(mapContainerId, listContainerId, activeDi
     mapContainer.selectAll('[data-district-label]').each(function() {
         const district = this.getAttribute('data-district');
         const isActive = district === activeDistrict, isLocked = district === lockedDistrict;
-        d3.select(this)
+        d3.select(this).interrupt()
+            .transition()
+            .duration(220)
+            .ease(d3.easeCubicOut)
             .style('opacity', activeDistrict ? (isActive || isLocked ? 1 : 0.35) : 1)
             .style('font-size', isActive ? '14px' : '12px')
             .style('font-weight', isActive ? '900' : '800');
@@ -676,6 +701,8 @@ export function drawHeatmap(containerId, data, xKey, yKey, valueKey) {
 
     const x = d3.scaleBand().domain(months).range([0, IW]).padding(0.05);
     const y = d3.scaleBand().domain(crimeTypes).range([0, IH]).padding(0.05);
+    const monthIndex = new Map(months.map((month, index) => [month, index]));
+    const typeIndex = new Map(crimeTypes.map((type, index) => [type, index]));
     
     // 自定义色阶：由黄到红，最高值趋向黑色
     const colorScale = d3.scaleSequential(t => {
@@ -687,29 +714,64 @@ export function drawHeatmap(containerId, data, xKey, yKey, valueKey) {
 
     const defs = svg.append("defs");
     const gradient = defs.append("linearGradient").attr("id", `heatmap-legend-gradient-${containerId}`).attr("x1", "0%").attr("y1", "100%").attr("x2", "0%").attr("y2", "0%");
+    const hoverGlowId = `heatmap-hover-glow-${containerId}`;
+    const hoverGlow = defs.append("filter").attr("id", hoverGlowId).attr("x", "-30%").attr("y", "-30%").attr("width", "160%").attr("height", "160%");
+    hoverGlow.append("feDropShadow").attr("dx", 0).attr("dy", 2).attr("stdDeviation", 3).attr("flood-color", "#0f172a").attr("flood-opacity", 0.35);
     d3.range(0, 1.01, 0.1).forEach(stop => {
         gradient.append("stop").attr("offset", `${stop * 100}%`).attr("stop-color", colorScale(maxValue * stop));
     });
 
-    svg.selectAll(".cell").data(data).enter().append("rect")
+    const cells = svg.selectAll(".cell").data(data).enter().append("rect")
         .attr("class", "cell")
-        .attr("x", d => x(d[xKey]))
-        .attr("y", d => y(d[yKey]))
-        .attr("width", x.bandwidth())
-        .attr("height", y.bandwidth())
+        .attr("x", d => x(d[xKey]) + x.bandwidth() / 2)
+        .attr("y", d => y(d[yKey]) + y.bandwidth() / 2)
+        .attr("width", 0)
+        .attr("height", 0)
         .attr("rx", 4)
         .attr("fill", d => colorScale(d[valueKey]))
+        .style("opacity", 0)
         .style("cursor", "pointer")
         .on("mouseover", (e, d) => {
-            d3.select(e.currentTarget).attr("stroke", "#1e293b").attr("stroke-width", 2);
+            const cell = d3.select(e.currentTarget);
+            cell.interrupt()
+                .transition()
+                .duration(140)
+                .attr("x", x(d[xKey]) - 1.5)
+                .attr("y", y(d[yKey]) - 1.5)
+                .attr("width", x.bandwidth() + 3)
+                .attr("height", y.bandwidth() + 3)
+                .attr("stroke", "#0f172a")
+                .attr("stroke-width", 1.6)
+                .attr("filter", `url(#${hoverGlowId})`);
             const monthNames = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
             const monthLabel = Number.isInteger(d[xKey]) ? monthNames[d[xKey] - 1] : d[xKey];
             showTooltip(`<b>${d[yKey]}</b><br/>${monthLabel}<br/>案件数: ${d[valueKey].toLocaleString()}`, e.pageX, e.pageY);
         })
         .on("mouseout", (e) => {
-            d3.select(e.currentTarget).attr("stroke", null);
+            const d = e.currentTarget.__data__;
+            d3.select(e.currentTarget)
+                .interrupt()
+                .transition()
+                .duration(160)
+                .attr("x", x(d[xKey]))
+                .attr("y", y(d[yKey]))
+                .attr("width", x.bandwidth())
+                .attr("height", y.bandwidth())
+                .attr("stroke", null)
+                .attr("stroke-width", null)
+                .attr("filter", null);
             hideTooltip();
         });
+    
+    cells.transition()
+        .duration(520)
+        .delay(d => monthIndex.get(d[xKey]) * 26 + typeIndex.get(d[yKey]) * 22)
+        .ease(d3.easeCubicOut)
+        .attr("x", d => x(d[xKey]))
+        .attr("y", d => y(d[yKey]))
+        .attr("width", x.bandwidth())
+        .attr("height", y.bandwidth())
+        .style("opacity", 1);
 
     const monthLabels = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
     svg.append("g")
@@ -730,6 +792,11 @@ export function drawHeatmap(containerId, data, xKey, yKey, valueKey) {
     svg.selectAll(".domain").remove();
 
     const legend = svg.append("g").attr("transform", `translate(${IW + 30}, 0)`);
+    legend.style("opacity", 0)
+        .transition()
+        .delay(420)
+        .duration(450)
+        .style("opacity", 1);
     legend.append("rect").attr("width", 20).attr("height", IH).attr("rx", 10).attr("fill", `url(#heatmap-legend-gradient-${containerId})`);
     legend.append("text").attr("x", 30).attr("y", 10).style("font-size", "12px").style("fill", "#475569").text("高");
     legend.append("text").attr("x", 30).attr("y", IH).style("font-size", "12px").style("fill", "#475569").text("低");

@@ -393,7 +393,7 @@ async function toggleAnalysis(type, el) {
             title: "高危案发场所详情",
             html: `
                 <div class="glass-card p-8 xl:col-span-2"><h3 class="text-lg font-bold text-slate-800 mb-6">Top 10 犯罪高发场所类型</h3><div id="detail-chart-1" class="h-[500px] w-full"></div></div>
-                <div class="glass-card p-8 flex flex-col"><h3 class="text-lg font-bold text-slate-800 mb-6">场所类型风险评估</h3><div id="location-risk-list" class="flex-1 space-y-3 overflow-y-auto max-h-[450px] pr-2"></div><div class="mt-6 pt-6 border-t border-slate-100"><div class="flex items-center gap-3 p-4 rounded-2xl bg-amber-50 text-amber-700"><div class="text-xl"><svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div><div class="text-xs font-medium">街道与住宅是案件发生最频繁的区域，请在这些区域保持警惕。</div></div></div></div>
+                <div class="glass-card p-8 flex flex-col"><h3 class="text-lg font-bold text-slate-800 mb-6">场所类型风险评估</h3><div id="location-risk-list" class="flex-1 space-y-3 overflow-y-auto max-h-[450px] pr-2"></div></div>
             `,
             action: async () => {
                 const data = await api.fetchTopLocations();
