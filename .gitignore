@@ -1,0 +1,45 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# IDE settings
+.vscode/
+.idea/
+.trae/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Large data files
+archive/
+*.csv
+*.dbf
+*.shp
+*.shx
+*.prj
+
+# Logs
+*.log
+
+# Database files
+*.db
+*.sqlite3
+
+# Personal files
+My.md
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/

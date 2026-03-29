@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>芝加哥犯罪情报中心</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body class="p-6 md:p-10">
+
+<div class="max-w-[1700px] mx-auto">
+    <div class="flex justify-between items-end mb-10">
+        <div class="glass-title-wrapper">
+            <h1 class="text-5xl font-extrabold tracking-tight glass-title">Crimes In Chicago</h1>
+            <div class="glass-title-glow"></div>
+        </div>
+        <div class="flex gap-4">
+            <div class="glass-card px-5 py-2.5 flex items-center gap-3">
+                <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span class="text-xs font-semibold text-slate-600">数据库已连接</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <!-- 平均逮捕率 -->
+        <div class="glass-card p-6 relative overflow-hidden group" id="kpi-avg-arrest">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                </svg>
+            </div>
+            <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-indigo-50 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                </div>
+                <span class="text-slate-500 text-sm font-medium">平均逮捕率</span>
+            </div>
+            <div class="text-3xl font-extrabold text-slate-800 tracking-tight">--%</div>
+            <div class="flex items-center gap-1.5 mt-3 text-xs font-semibold" id="kpi-avg-arrest-compare">
+                --
+            </div>
+        </div>
+
+        <!-- 犯罪总数 -->
+        <div class="glass-card p-6 relative overflow-hidden group" id="kpi-total">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+            </div>
+            <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-emerald-50 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                </div>
+                <span class="text-slate-500 text-sm font-medium">历年犯罪总数</span>
+            </div>
+            <div class="text-3xl font-extrabold text-slate-800 tracking-tight">--</div>
+            <div class="mt-3 text-xs font-medium text-slate-400" id="kpi-total-change">
+                --
+            </div>
+        </div>
+
+        <!-- 高频犯罪类型 -->
+        <div class="glass-card p-6 relative overflow-hidden group" id="kpi-top-type">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div class="flex items-center gap-3 mb-3">
+                <div class="p-2 bg-rose-50 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.99 7.99 0 0121 13a8.144 8.144 0 01-.157 1.657z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <span class="text-slate-500 text-sm font-medium">高频犯罪类型</span>
+            </div>
+            <div class="text-2xl font-extrabold text-slate-800 tracking-tight truncate pr-12">--</div>
+            <div class="mt-3 text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                首位犯罪类型
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+        <div class="glass-card p-7">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">犯罪年度趋势</h3>
+                    <p id="trend-summary" class="text-xs text-slate-500 mt-1">正在分析趋势数据...</p>
+                </div>
+                <div class="flex gap-4 flex-shrink-0">
+                    <span class="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-500 whitespace-nowrap">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 原始数据
+                    </span>
+                    <span class="flex items-center gap-1.5 text-[10px] font-semibold text-amber-500 whitespace-nowrap">
+                        <span class="w-2 h-2 rounded-full bg-amber-500"></span> 3年移动平均
+                    </span>
+                </div>
+            </div>
+            <div id="yearly-trend" class="h-[320px] w-full"></div>
+        </div>
+        <div class="glass-card p-7">
+            <h3 class="text-lg font-bold mb-6 text-slate-800">犯罪类型构成</h3>
+            <div id="pie-chart" class="h-[340px] w-full flex items-center justify-center"></div>
+        </div>
+    </div>
+
+    <div class="mt-12">
+        <div class="flex items-center gap-4 mb-8">
+            <div class="h-8 w-1.5 bg-indigo-600 rounded-full"></div>
+            <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">详情分析</h2>
+            <div class="flex-1 h-px bg-slate-200 ml-4 opacity-50"></div>
+        </div>
+        
+        <div id="analysis-nav-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
+            <div onclick="toggleAnalysis('weekly', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div class="tile-text">一周犯罪分布</div>
+            </div>
+            <div onclick="toggleAnalysis('hourly', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="tile-text">24小时犯罪分布</div>
+            </div>
+            <div onclick="toggleAnalysis('district', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                </div>
+                <div class="tile-text">警区案件排行</div>
+            </div>
+            <div onclick="toggleAnalysis('arrest', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                    </svg>
+                </div>
+                <div class="tile-text">逮捕率变迁</div>
+            </div>
+            <div onclick="toggleAnalysis('domestic', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                </div>
+                <div class="tile-text">家暴与非家暴</div>
+            </div>
+            <div onclick="toggleAnalysis('locations', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <div class="tile-text">高危案发场所</div>
+            </div>
+            <div onclick="toggleAnalysis('monthly', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </div>
+                <div class="tile-text">月度季节性规律</div>
+            </div>
+            <div onclick="toggleAnalysis('crosstab', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                    </svg>
+                </div>
+                <div class="tile-text">犯罪类型月度热图</div>
+            </div>
+            <div onclick="toggleAnalysis('theft', this)" class="nav-tile cursor-pointer">
+                <div class="tile-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="tile-text">盗窃专项分析</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 动态详情展示区 -->
+    <div id="analysis-details-container" class="hidden mt-12 space-y-8">
+        <div class="flex justify-between items-center bg-white/50 p-6 rounded-[32px] border border-white/60 backdrop-blur-md">
+            <h2 id="analysis-title" class="text-2xl font-bold text-slate-800 flex items-center gap-3"></h2>
+            <button onclick="closeAnalysis()" class="close-btn flex items-center gap-2">
+                <span>收起分析</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+        </div>
+        
+        <div id="analysis-content" class="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
+            <!-- 动态注入内容 -->
+        </div>
+    </div>
+</div>
+
+<div id="tooltip" class="custom-tooltip"></div>
+
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
