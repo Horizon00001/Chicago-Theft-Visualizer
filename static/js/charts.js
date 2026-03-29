@@ -1,7 +1,7 @@
 // 图表绘制模块
 export const colors = {
-    indigo: "#6366f1", purple: "#a855f7", rose: "#f43f5e", sky: "#0ea5e9",
-    amber: "#f59e0b", emerald: "#10b981", slate: "#64748b", grid: "#f1f5f9"
+    indigo: "#6366f1", purple: "#3ce4c8", rose: "#f43f5e", sky: "#0ea5e9",
+    amber: "#fef08a", emerald: "#10b981", slate: "#64748b", grid: "#f1f5f9"
 };
 
 export const weekdayMap = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -67,7 +67,7 @@ export function drawBarChart(containerId, data, xAccessor, yAccessor) {
     svg.selectAll(".domain").remove();
 }
 
-export function drawLineChart(containerId, data, xAccessor, yAccessor, color, unit = "") {
+export function drawLineChart(containerId, data, xAccessor, yAccessor, color, unit = "", valueLabel = "案件数") {
     const container = d3.select(`#${containerId}`);
     container.selectAll("*").remove();
     const width = container.node().clientWidth;
@@ -112,14 +112,14 @@ export function drawLineChart(containerId, data, xAccessor, yAccessor, color, un
     peakGroup.append("circle").attr("cx", x(xAccessor(peakData))).attr("cy", y(yAccessor(peakData))).attr("r", 8).attr("fill", "none").attr("stroke", "#ef4444").attr("stroke-width", 2).attr("class", "animate-ping");
     const peakBadge = peakGroup.append("g").attr("transform", `translate(${x(xAccessor(peakData))}, ${y(yAccessor(peakData)) - 25})`);
     peakBadge.append("rect").attr("x", -28).attr("y", -10).attr("width", 56).attr("height", 20).attr("rx", 10).attr("fill", "#ef4444").attr("filter", "drop-shadow(0 2px 4px rgba(239,68,68,0.3))");
-    peakBadge.append("text").attr("text-anchor", "middle").attr("y", 4).attr("fill", "#fff").attr("font-size", "10px").attr("font-weight", "bold").text("发案高峰");
+    peakBadge.append("text").attr("text-anchor", "middle").attr("y", 4).attr("fill", "#fff").attr("font-size", "10px").attr("font-weight", "bold").text("最高值");
     peakGroup.transition().delay(1600).duration(500).style("opacity", 1);
 
     const valleyGroup = svg.append("g").attr("class", "valley-mark").style("opacity", 0);
     valleyGroup.append("circle").attr("cx", x(xAccessor(valleyData))).attr("cy", y(yAccessor(valleyData))).attr("r", 8).attr("fill", "none").attr("stroke", "#10b981").attr("stroke-width", 2).attr("class", "animate-ping");
     const valleyBadge = valleyGroup.append("g").attr("transform", `translate(${x(xAccessor(valleyData))}, ${y(yAccessor(valleyData)) + 25})`);
     valleyBadge.append("rect").attr("x", -28).attr("y", -10).attr("width", 56).attr("height", 20).attr("rx", 10).attr("fill", "#10b981").attr("filter", "drop-shadow(0 2px 4px rgba(16,185,129,0.3))");
-    valleyBadge.append("text").attr("text-anchor", "middle").attr("y", 4).attr("fill", "#fff").attr("font-size", "10px").attr("font-weight", "bold").text("发案低谷");
+    valleyBadge.append("text").attr("text-anchor", "middle").attr("y", 4).attr("fill", "#fff").attr("font-size", "10px").attr("font-weight", "bold").text("最低值");
     valleyGroup.transition().delay(1800).duration(500).style("opacity", 1);
 
     const dots = svg.selectAll(".dot").data(data).enter().append("circle").attr("cx", d => x(xAccessor(d))).attr("cy", d => y(yAccessor(d))).attr("r", 0).attr("fill", color).attr("stroke", "#fff").attr("stroke-width", 2).style("cursor", "pointer");
@@ -142,7 +142,7 @@ export function drawLineChart(containerId, data, xAccessor, yAccessor, color, un
                 const cy = y(yAccessor(d));
                 vlineGroup.style("display", null).select("line").attr("x1", cx).attr("x2", cx);
                 highlightCircle.attr("cx", cx).attr("cy", cy);
-                showTooltip(`<b>${xAccessor(d)}</b><br/>案件数: ${yAccessor(d).toLocaleString()}${unit}`, e.pageX, e.pageY);
+                showTooltip(`<b>${xAccessor(d)}</b><br/>${valueLabel}: ${yAccessor(d).toLocaleString()}${unit}`, e.pageX, e.pageY);
             }
         })
         .on("mouseout", () => { vlineGroup.style("display", "none"); hideTooltip(); });
@@ -186,6 +186,31 @@ export function drawYoYChart(containerId, data, xAccessor, yAccessor) {
         .attr("height", d => Math.abs(y(yAccessor(d)) - y(0)))
         .attr("rx", 4)
         .attr("fill", d => yAccessor(d) >= 0 ? "#f43f5e" : "#10b981")
+        .on("mouseover", (e, d) => showTooltip(`<b>${xAccessor(d)}</b><br/>较去年: ${yAccessor(d) > 0 ? '+' : ''}${yAccessor(d).toLocaleString()} 件`, e.pageX, e.pageY))
+        .on("mouseout", hideTooltip);
+
+    // 添加趋势折线
+    const line = d3.line()
+        .x(d => x(xAccessor(d)) + x.bandwidth() / 2)
+        .y(d => y(yAccessor(d)))
+        .curve(d3.curveMonotoneX);
+
+    svg.append("path")
+        .datum(data)
+        .attr("fill", "none")
+        .attr("stroke", colors.slate)
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "4,4")
+        .attr("d", line);
+
+    // 添加折线数据点
+    svg.selectAll(".dot").data(data).enter().append("circle").attr("class", "dot")
+        .attr("cx", d => x(xAccessor(d)) + x.bandwidth() / 2)
+        .attr("cy", d => y(yAccessor(d)))
+        .attr("r", 4)
+        .attr("fill", "#fff")
+        .attr("stroke", colors.slate)
+        .attr("stroke-width", 2)
         .on("mouseover", (e, d) => showTooltip(`<b>${xAccessor(d)}</b><br/>较去年: ${yAccessor(d) > 0 ? '+' : ''}${yAccessor(d).toLocaleString()} 件`, e.pageX, e.pageY))
         .on("mouseout", hideTooltip);
 
@@ -434,7 +459,7 @@ export async function drawAreaChart(id, api, xKey, yKey, color) {
 
     svg.append("path").datum(data).attr("fill", `url(#${gradId})`).attr("d", area);
     const path = svg.append("path").datum(data).attr("fill", "none").attr("stroke", color).attr("stroke-width", 3.5).attr("d", line);
-    svg.append("path").datum(maData).attr("fill", "none").attr("stroke", "#f59e0b").attr("stroke-width", 2).attr("stroke-dasharray", "5,5").attr("d", maLine).style("opacity", 0.8);
+    svg.append("path").datum(maData).attr("fill", "none").attr("stroke", "#fef08a").attr("stroke-width", 2).attr("stroke-dasharray", "5,5").attr("d", maLine).style("opacity", 0.8);
 
     const len = path.node().getTotalLength();
     path.attr("stroke-dasharray", len).attr("stroke-dashoffset", len).transition().duration(1500).attr("stroke-dashoffset", 0);
@@ -800,4 +825,366 @@ export function drawHeatmap(containerId, data, xKey, yKey, valueKey) {
     legend.append("rect").attr("width", 20).attr("height", IH).attr("rx", 10).attr("fill", `url(#heatmap-legend-gradient-${containerId})`);
     legend.append("text").attr("x", 30).attr("y", 10).style("font-size", "12px").style("fill", "#475569").text("高");
     legend.append("text").attr("x", 30).attr("y", IH).style("font-size", "12px").style("fill", "#475569").text("低");
+}
+
+export function drawButterflyChart(containerId, data) {
+    const container = d3.select(`#${containerId}`);
+    container.selectAll("*").remove();
+    const width = container.node().clientWidth || 800;
+    const height = container.node().clientHeight || 600;
+    const margin = {top: 60, right: 40, bottom: 40, left: 40};
+    
+    // We need a central gap for the labels
+    const centerGap = 240; 
+    const halfWidth = (width - margin.left - margin.right - centerGap) / 2;
+    const IH = height - margin.top - margin.bottom;
+    
+    const svg = container.append("svg")
+        .attr("viewBox", `0 0 ${width} ${height}`)
+        .attr("preserveAspectRatio", "xMidYMid meet")
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+        
+    // Y scale for the categories
+    const y = d3.scaleBand()
+        .domain(data.map(d => d.primary_type))
+        .range([0, IH])
+        .padding(0.3);
+        
+    // Calculate total cases for each period to compute percentages
+    const totalFirst5 = d3.sum(data, d => d.count_first_5);
+    const totalLast5 = d3.sum(data, d => d.count_last_5);
+
+    // Calculate maximum percentage to set scales
+    const maxPercent = d3.max(data, d => Math.max(
+        (d.count_first_5 / totalFirst5) * 100, 
+        (d.count_last_5 / totalLast5) * 100
+    ));
+
+    const xLeft = d3.scaleLinear()
+        .domain([0, maxPercent])
+        .range([halfWidth, 0]); 
+        
+    const xRight = d3.scaleLinear()
+        .domain([0, maxPercent])
+        .range([0, halfWidth]);
+        
+    // Draw Left bars (2001-2005)
+    const leftGroup = svg.append("g");
+    leftGroup.selectAll(".bar-left")
+        .data(data)
+        .enter().append("rect")
+        .attr("class", "bar-left")
+        .attr("x", halfWidth)
+        .attr("y", d => y(d.primary_type))
+        .attr("width", 0)
+        .attr("height", y.bandwidth())
+        .attr("rx", 6)
+        .attr("fill", "#83b8d7")
+        .style("cursor", "pointer")
+        .on("mouseover", (e, d) => {
+            d3.select(e.currentTarget).attr("opacity", 0.8);
+            const pct = ((d.count_first_5 / totalFirst5) * 100).toFixed(1);
+            showTooltip(`<b>${d.primary_type}</b><br/>2001-2005: ${d.count_first_5.toLocaleString()} 件 (${pct}%)`, e.pageX, e.pageY);
+        })
+        .on("mouseout", (e) => {
+            d3.select(e.currentTarget).attr("opacity", 1);
+            hideTooltip();
+        })
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50)
+        .attr("x", d => xLeft((d.count_first_5 / totalFirst5) * 100))
+        .attr("width", d => halfWidth - xLeft((d.count_first_5 / totalFirst5) * 100));
+        
+    // Draw Right bars (2019-2023)
+    const rightGroup = svg.append("g")
+        .attr("transform", `translate(${halfWidth + centerGap}, 0)`);
+    rightGroup.selectAll(".bar-right")
+        .data(data)
+        .enter().append("rect")
+        .attr("class", "bar-right")
+        .attr("x", 0)
+        .attr("y", d => y(d.primary_type))
+        .attr("width", 0)
+        .attr("height", y.bandwidth())
+        .attr("rx", 6)
+        .attr("fill", "#f7c2aa")
+        .style("cursor", "pointer")
+        .on("mouseover", (e, d) => {
+            d3.select(e.currentTarget).attr("opacity", 0.8);
+            const pct = ((d.count_last_5 / totalLast5) * 100).toFixed(1);
+            showTooltip(`<b>${d.primary_type}</b><br/>2019-2023: ${d.count_last_5.toLocaleString()} 件 (${pct}%)`, e.pageX, e.pageY);
+        })
+        .on("mouseout", (e) => {
+            d3.select(e.currentTarget).attr("opacity", 1);
+            hideTooltip();
+        })
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50)
+        .attr("width", d => xRight((d.count_last_5 / totalLast5) * 100));
+        
+    // Center labels
+    const labelGroup = svg.append("g")
+        .attr("transform", `translate(${halfWidth + centerGap/2}, 0)`);
+        
+    // Central line
+    labelGroup.append("line")
+        .attr("x1", 0)
+        .attr("x2", 0)
+        .attr("y1", -20)
+        .attr("y2", IH + 10)
+        .attr("stroke", "#cbd5e1")
+        .attr("stroke-dasharray", "4,4")
+        .style("opacity", 0)
+        .transition()
+        .duration(800)
+        .style("opacity", 1);
+
+    labelGroup.selectAll(".label")
+        .data(data)
+        .enter().append("text")
+        .attr("class", "label")
+        .attr("x", 0)
+        .attr("y", d => y(d.primary_type) + y.bandwidth() / 2)
+        .attr("dy", "0.32em")
+        .attr("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("font-weight", "bold")
+        .style("fill", "#334155")
+        .style("opacity", 0)
+        .text(d => d.primary_type)
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50)
+        .style("opacity", 1);
+        
+    // Add value texts next to bars
+    // Left side values
+    leftGroup.selectAll(".val-left")
+        .data(data)
+        .enter().append("text")
+        .attr("x", d => xLeft((d.count_first_5 / totalFirst5) * 100) - 8)
+        .attr("y", d => y(d.primary_type) + y.bandwidth() / 2)
+        .attr("dy", "0.32em")
+        .attr("text-anchor", "end")
+        .style("font-size", "12px")
+        .style("font-weight", "bold")
+        .style("fill", "#83b8d7")
+        .style("opacity", 0)
+        .text(d => ((d.count_first_5 / totalFirst5) * 100).toFixed(1) + "%")
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50 + 400)
+        .style("opacity", 1);
+        
+    // Right side values
+    rightGroup.selectAll(".val-right")
+        .data(data)
+        .enter().append("text")
+        .attr("x", d => xRight((d.count_last_5 / totalLast5) * 100) + 8)
+        .attr("y", d => y(d.primary_type) + y.bandwidth() / 2)
+        .attr("dy", "0.32em")
+        .attr("text-anchor", "start")
+        .style("font-size", "12px")
+        .style("font-weight", "bold")
+        .style("fill", "#f7c2aa")
+        .style("opacity", 0)
+        .text(d => ((d.count_last_5 / totalLast5) * 100).toFixed(1) + "%")
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50 + 400)
+        .style("opacity", 1);
+        
+    // Draw top headers
+    svg.append("text")
+        .attr("x", halfWidth / 2)
+        .attr("y", -20)
+        .attr("text-anchor", "middle")
+        .style("font-size", "16px")
+        .style("font-weight", "bold")
+        .style("fill", "#83b8d7")
+        .style("opacity", 0)
+        .text("2001-2005")
+        .transition()
+        .duration(800)
+        .style("opacity", 1);
+        
+    svg.append("text")
+        .attr("x", halfWidth + centerGap + halfWidth / 2)
+        .attr("y", -20)
+        .attr("text-anchor", "middle")
+        .style("font-size", "16px")
+        .style("font-weight", "bold")
+        .style("fill", "#f7c2aa")
+        .style("opacity", 0)
+        .text("2019-2023")
+        .transition()
+        .duration(800)
+        .style("opacity", 1);
+}
+
+export function drawLorenzCurve(containerId, data, valueKey = "cnt") {
+    const container = d3.select(`#${containerId}`);
+    container.selectAll("*").remove();
+    const width = container.node().clientWidth || 800;
+    const height = container.node().clientHeight || 520;
+    const margin = {top: 34, right: 40, bottom: 56, left: 72};
+    const IW = width - margin.left - margin.right;
+    const IH = height - margin.top - margin.bottom;
+    const svg = container.append("svg")
+        .attr("viewBox", `0 0 ${width} ${height}`)
+        .attr("preserveAspectRatio", "xMidYMid meet")
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const normalized = (data || [])
+        .map(item => ({
+            district: String(item.district || "").trim(),
+            district_name: String(item.district_name || "").trim(),
+            value: Number(item[valueKey]) || 0
+        }))
+        .filter(item => item.district && item.value > 0)
+        .sort((a, b) => a.value - b.value);
+
+    if (!normalized.length) {
+        svg.append("text")
+            .attr("x", IW / 2)
+            .attr("y", IH / 2)
+            .attr("text-anchor", "middle")
+            .style("font-size", "15px")
+            .style("fill", "#64748b")
+            .text("暂无可用数据");
+        return { gini: 0, top20Share: 0, districtCount: 0 };
+    }
+
+    const total = d3.sum(normalized, d => d.value);
+    const n = normalized.length;
+    let cumulative = 0;
+    const points = [{ x: 0, y: 0, district: "", district_name: "", value: 0 }];
+    normalized.forEach((item, idx) => {
+        cumulative += item.value;
+        points.push({
+            x: (idx + 1) / n,
+            y: cumulative / total,
+            district: item.district,
+            district_name: item.district_name,
+            value: item.value
+        });
+    });
+
+    const x = d3.scaleLinear().domain([0, 1]).range([0, IW]);
+    const y = d3.scaleLinear().domain([0, 1]).range([IH, 0]);
+    const area = d3.area().x(d => x(d.x)).y0(d => y(d.x)).y1(d => y(d.y)).curve(d3.curveMonotoneX);
+    const lorenz = d3.line().x(d => x(d.x)).y(d => y(d.y)).curve(d3.curveMonotoneX);
+    const equality = d3.line().x(d => x(d.x)).y(d => y(d.x));
+
+    svg.append("g")
+        .attr("class", "grid-lines")
+        .call(d3.axisLeft(y).ticks(5).tickSize(-IW).tickFormat(""))
+        .selectAll(".tick line")
+        .attr("stroke", "#e2e8f0")
+        .attr("stroke-dasharray", "4,4");
+
+    const defs = svg.append("defs");
+    const gradId = `lorenz-area-${containerId}`;
+    const grad = defs.append("linearGradient").attr("id", gradId).attr("x1", "0%").attr("y1", "0%").attr("x2", "0%").attr("y2", "100%");
+    grad.append("stop").attr("offset", "0%").attr("stop-color", colors.rose).attr("stop-opacity", 0.28);
+    grad.append("stop").attr("offset", "100%").attr("stop-color", colors.rose).attr("stop-opacity", 0.05);
+
+    svg.append("path")
+        .datum(points)
+        .attr("fill", `url(#${gradId})`)
+        .attr("d", area)
+        .style("opacity", 0)
+        .transition()
+        .duration(700)
+        .style("opacity", 1);
+
+    svg.append("path")
+        .datum(points)
+        .attr("fill", "none")
+        .attr("stroke", "#94a3b8")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "5,5")
+        .attr("d", equality);
+
+    const lorenzPath = svg.append("path")
+        .datum(points)
+        .attr("fill", "none")
+        .attr("stroke", colors.rose)
+        .attr("stroke-width", 3.5)
+        .attr("d", lorenz);
+    const length = lorenzPath.node().getTotalLength();
+    lorenzPath
+        .attr("stroke-dasharray", length)
+        .attr("stroke-dashoffset", length)
+        .transition()
+        .duration(1300)
+        .ease(d3.easeCubicOut)
+        .attr("stroke-dashoffset", 0);
+
+    const marks = points.slice(1).filter((d, idx) => idx % Math.max(1, Math.floor(n / 8)) === 0 || idx === n - 1);
+    svg.selectAll(".lorenz-dot")
+        .data(marks)
+        .enter()
+        .append("circle")
+        .attr("class", "lorenz-dot")
+        .attr("cx", d => x(d.x))
+        .attr("cy", d => y(d.y))
+        .attr("r", 0)
+        .attr("fill", "#fff")
+        .attr("stroke", colors.rose)
+        .attr("stroke-width", 2)
+        .style("cursor", "pointer")
+        .on("mouseover", (e, d) => {
+            const pX = (d.x * 100).toFixed(1);
+            const pY = (d.y * 100).toFixed(1);
+            showTooltip(`<b>累计警区占比:</b> ${pX}%<br/><b>累计案件占比:</b> ${pY}%<br/>当前警区: ${d.district_name || `警区 ${d.district}`}`, e.pageX, e.pageY);
+        })
+        .on("mouseout", hideTooltip)
+        .transition()
+        .delay((d, i) => 240 + i * 55)
+        .duration(420)
+        .attr("r", 4.5);
+
+    svg.append("g")
+        .attr("transform", `translate(0,${IH})`)
+        .call(d3.axisBottom(x).ticks(5).tickFormat(d => `${Math.round(d * 100)}%`).tickSize(0).tickPadding(12))
+        .style("color", "#64748b");
+    svg.append("g")
+        .call(d3.axisLeft(y).ticks(5).tickFormat(d => `${Math.round(d * 100)}%`).tickSize(0).tickPadding(10))
+        .style("color", "#64748b");
+    svg.selectAll(".domain").remove();
+
+    svg.append("text")
+        .attr("x", IW / 2)
+        .attr("y", IH + 45)
+        .attr("text-anchor", "middle")
+        .style("fill", "#64748b")
+        .style("font-size", "12px")
+        .text("累计警区占比");
+    svg.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -IH / 2)
+        .attr("y", -52)
+        .attr("text-anchor", "middle")
+        .style("fill", "#64748b")
+        .style("font-size", "12px")
+        .text("累计案件占比");
+
+    let areaGap = 0;
+    for (let i = 1; i < points.length; i++) {
+        const x1 = points[i - 1].x;
+        const x2 = points[i].x;
+        const y1 = points[i - 1].y;
+        const y2 = points[i].y;
+        areaGap += ((x2 - x1) * ((x1 - y1) + (x2 - y2))) / 2;
+    }
+    const gini = Math.max(0, Math.min(1, 2 * areaGap));
+    const topCount = Math.max(1, Math.ceil(n * 0.2));
+    const top20Share = d3.sum(normalized.slice(n - topCount), d => d.value) / total;
+
+    return { gini, top20Share, districtCount: n };
 }

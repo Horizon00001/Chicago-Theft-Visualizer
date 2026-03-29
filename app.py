@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from flask import Flask, jsonify, render_template, current_app
+from flask import Flask, jsonify, render_template, current_app, request
 import psycopg2
 from psycopg2 import pool
 import psycopg2.extras
@@ -21,10 +21,26 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # 配置缓存
+cache_type = os.getenv('CACHE_TYPE', 'SimpleCache')
 cache_config = {
-    'CACHE_TYPE': os.getenv('CACHE_TYPE', 'SimpleCache'),
+    'CACHE_TYPE': cache_type,
     'CACHE_DEFAULT_TIMEOUT': int(os.getenv('CACHE_DEFAULT_TIMEOUT', 300))
 }
+
+if cache_type == 'RedisCache':
+    redis_url = os.getenv('CACHE_REDIS_URL')
+    if redis_url:
+        cache_config['CACHE_REDIS_URL'] = redis_url
+    else:
+        redis_host = os.getenv('CACHE_REDIS_HOST', '127.0.0.1')
+        redis_port = int(os.getenv('CACHE_REDIS_PORT', 6379))
+        redis_db = int(os.getenv('CACHE_REDIS_DB', 0))
+        redis_password = os.getenv('CACHE_REDIS_PASSWORD')
+        if redis_password:
+            cache_config['CACHE_REDIS_PASSWORD'] = redis_password
+        cache_config['CACHE_REDIS_HOST'] = redis_host
+        cache_config['CACHE_REDIS_PORT'] = redis_port
+        cache_config['CACHE_REDIS_DB'] = redis_db
 app.config.from_mapping(cache_config)
 cache = Cache(app)
 
@@ -97,7 +113,14 @@ def weekly_distribution():
     conn = get_db_conn()
     try:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT EXTRACT(DOW FROM date) AS dow, COUNT(*) AS cnt FROM crimes GROUP BY EXTRACT(DOW FROM date) ORDER BY dow")
+        cur.execute("""
+            SELECT EXTRACT(DOW FROM date) AS dow, 
+                   COUNT(*) AS cnt,
+                   COUNT(*) FILTER (WHERE arrest = TRUE) AS arrest_cnt
+            FROM crimes 
+            GROUP BY EXTRACT(DOW FROM date) 
+            ORDER BY dow
+        """)
         rows = cur.fetchall()
         return jsonify(rows)
     finally:
@@ -131,12 +154,18 @@ def top_crime_types():
         release_db_conn(conn)
 
 @app.route('/api/district_crimes')
-@cache.cached()
+@cache.cached(query_string=True)
 def district_crimes():
     conn = get_db_conn()
     try:
+        primary_type = (request.args.get('primary_type') or 'ALL').strip().upper()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT district, COUNT(*) AS cnt FROM crimes WHERE district IS NOT NULL GROUP BY district ORDER BY cnt DESC")
+        params = []
+        where_sql = "WHERE district IS NOT NULL"
+        if primary_type != 'ALL':
+            where_sql += " AND primary_type = %s"
+            params.append(primary_type)
+        cur.execute(f"SELECT district, COUNT(*) AS cnt FROM crimes {where_sql} GROUP BY district ORDER BY cnt DESC", params)
         rows = cur.fetchall()
         return jsonify(rows)
     finally:
@@ -200,19 +229,48 @@ def domestic_trend():
         release_db_conn(conn)
 
 @app.route('/api/top_locations')
-@cache.cached()
+@cache.cached(query_string=True)
 def top_locations():
     conn = get_db_conn()
     try:
+        primary_type = (request.args.get('primary_type') or 'ALL').strip().upper()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""
+        params = []
+        filter_sql = "WHERE location_description IS NOT NULL"
+        if primary_type != 'ALL':
+            filter_sql += " AND primary_type = %s"
+            params.append(primary_type)
+        cur.execute(f"""
+            WITH base AS (
+                SELECT UPPER(location_description) AS loc
+                FROM crimes
+                {filter_sql}
+            ),
+            normalized AS (
+                SELECT
+                    CASE
+                        WHEN LEFT(loc, 7) = 'RESIDEN' OR POSITION('DRIVEWAY - RESIDENTIAL' IN loc) > 0 THEN 'RESIDENCE'
+                        WHEN POSITION('APARTMENT' IN loc) > 0 THEN 'APARTMENT'
+                        WHEN POSITION('PARKING' IN loc) > 0 THEN 'PARKING'
+                        WHEN LEFT(loc, 6) = 'SCHOOL' THEN 'SCHOOL'
+                        WHEN POSITION('STORE' IN loc) > 0 OR POSITION('RETAIL' IN loc) > 0 OR LEFT(loc, 10) = 'COMMERCIAL' OR POSITION('BANK' IN loc) > 0 OR LEFT(loc, 17) = 'CURRENCY EXCHANGE' THEN 'COMMERCIAL/RETAIL'
+                        WHEN POSITION('RESTAURANT' IN loc) > 0 OR POSITION('BAR' IN loc) > 0 OR POSITION('TAVERN' IN loc) > 0 THEN 'RESTAURANT/BAR'
+                        WHEN LEFT(loc, 3) = 'CTA' OR POSITION('RAILROAD' IN loc) > 0 OR LEFT(loc, 7) = 'AIRPORT' THEN 'TRANSIT'
+                        WHEN LEFT(loc, 5) = 'OTHER' THEN 'OTHER'
+                        WHEN POSITION('VEHICLE' IN loc) > 0 THEN 'VEHICLE'
+                        WHEN POSITION('HOSPITAL' IN loc) > 0 OR POSITION('NURSING' IN loc) > 0 OR POSITION('MEDICAL' IN loc) > 0 THEN 'MEDICAL'
+                        WHEN POSITION('GAS STATION' IN loc) > 0 THEN 'GAS STATION'
+                        WHEN LEFT(loc, 3) = 'CHA' THEN 'CHA PROPERTY'
+                        ELSE loc
+                    END AS location_description
+                FROM base
+            )
             SELECT location_description, COUNT(*) AS cnt
-            FROM crimes
-            WHERE location_description IS NOT NULL
+            FROM normalized
             GROUP BY location_description
             ORDER BY cnt DESC
             LIMIT 10
-        """)
+        """, tuple(params))
         rows = cur.fetchall()
         return jsonify(rows)
     finally:
@@ -233,10 +291,11 @@ def monthly_trend():
         release_db_conn(conn)
 
 @app.route('/api/theft_by_district')
-@cache.cached()
+@cache.cached(query_string=True)
 def theft_by_district():
     conn = get_db_conn()
     try:
+        primary_type = (request.args.get('primary_type') or 'THEFT').strip().upper()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             SELECT
@@ -245,12 +304,32 @@ def theft_by_district():
                 ROUND(AVG(latitude)::numeric, 6) AS latitude,
                 ROUND(AVG(longitude)::numeric, 6) AS longitude
             FROM crimes
-            WHERE primary_type = 'THEFT'
+            WHERE primary_type = %s
               AND district IS NOT NULL
               AND latitude IS NOT NULL
               AND longitude IS NOT NULL
             GROUP BY district
             ORDER BY theft_cnt DESC
+        """, (primary_type,))
+        rows = cur.fetchall()
+        return jsonify(rows)
+    finally:
+        if cur: cur.close()
+        release_db_conn(conn)
+
+@app.route('/api/crime_types')
+@cache.cached()
+def crime_types():
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT primary_type, COUNT(*) AS cnt
+            FROM crimes
+            WHERE primary_type IS NOT NULL
+            GROUP BY primary_type
+            ORDER BY cnt DESC
+            LIMIT 25
         """)
         rows = cur.fetchall()
         return jsonify(rows)
@@ -273,6 +352,30 @@ def crime_type_by_month():
             WHERE primary_type IS NOT NULL
             GROUP BY primary_type, EXTRACT(MONTH FROM date)
             ORDER BY primary_type, month
+        """)
+        rows = cur.fetchall()
+        return jsonify(rows)
+    finally:
+        if cur: cur.close()
+        release_db_conn(conn)
+
+@app.route('/api/crime_structure_change')
+@cache.cached()
+def crime_structure_change():
+    conn = get_db_conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT primary_type,
+                SUM(CASE WHEN EXTRACT(YEAR FROM date) BETWEEN 2001 AND 2005 THEN 1 ELSE 0 END) AS count_first_5,
+                SUM(CASE WHEN EXTRACT(YEAR FROM date) BETWEEN 2019 AND 2023 THEN 1 ELSE 0 END) AS count_last_5
+            FROM crimes
+            WHERE EXTRACT(YEAR FROM date) BETWEEN 2001 AND 2005 
+               OR EXTRACT(YEAR FROM date) BETWEEN 2019 AND 2023
+            GROUP BY primary_type
+            ORDER BY (SUM(CASE WHEN EXTRACT(YEAR FROM date) BETWEEN 2001 AND 2005 THEN 1 ELSE 0 END) + 
+                      SUM(CASE WHEN EXTRACT(YEAR FROM date) BETWEEN 2019 AND 2023 THEN 1 ELSE 0 END)) DESC
+            LIMIT 15;
         """)
         rows = cur.fetchall()
         return jsonify(rows)
