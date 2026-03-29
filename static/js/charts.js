@@ -94,8 +94,14 @@ export function drawLineChart(containerId, data, xAccessor, yAccessor, color, un
     grad.append("stop").attr("offset", "0%").attr("stop-color", color).attr("stop-opacity", 0.3);
     grad.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0);
 
+    const lineShadowId = `line-shadow-${containerId}`;
+    const filter = defs.append("filter").attr("id", lineShadowId).attr("x", "-20%").attr("y", "-20%").attr("width", "140%").attr("height", "140%");
+    filter.append("feDropShadow").attr("dx", 0).attr("dy", 6).attr("stdDeviation", 6).attr("flood-color", color).attr("flood-opacity", 0.4);
+
+    svg.append("g").attr("class", "grid-lines").call(d3.axisLeft(y).ticks(5).tickSize(-IW).tickFormat("")).selectAll(".tick line").attr("stroke", "#f1f5f9").attr("stroke-dasharray", "4,4");
+
     svg.append("path").datum(data).attr("fill", `url(#${gradId})`).attr("d", area);
-    const path = svg.append("path").datum(data).attr("fill", "none").attr("stroke", color).attr("stroke-width", 3.5).attr("d", line);
+    const path = svg.append("path").datum(data).attr("fill", "none").attr("stroke", color).attr("stroke-width", 3.5).attr("filter", `url(#${lineShadowId})`).attr("d", line);
     const length = path.node().getTotalLength();
     path.attr("stroke-dasharray", length).attr("stroke-dashoffset", length).transition().duration(1500).attr("stroke-dashoffset", 0);
 
@@ -104,12 +110,16 @@ export function drawLineChart(containerId, data, xAccessor, yAccessor, color, un
 
     const peakGroup = svg.append("g").attr("class", "peak-mark").style("opacity", 0);
     peakGroup.append("circle").attr("cx", x(xAccessor(peakData))).attr("cy", y(yAccessor(peakData))).attr("r", 8).attr("fill", "none").attr("stroke", "#ef4444").attr("stroke-width", 2).attr("class", "animate-ping");
-    peakGroup.append("text").attr("x", x(xAccessor(peakData))).attr("y", y(yAccessor(peakData)) - 15).attr("text-anchor", "middle").attr("fill", "#ef4444").attr("font-size", "10px").attr("font-weight", "bold").text("发案高峰");
+    const peakBadge = peakGroup.append("g").attr("transform", `translate(${x(xAccessor(peakData))}, ${y(yAccessor(peakData)) - 25})`);
+    peakBadge.append("rect").attr("x", -28).attr("y", -10).attr("width", 56).attr("height", 20).attr("rx", 10).attr("fill", "#ef4444").attr("filter", "drop-shadow(0 2px 4px rgba(239,68,68,0.3))");
+    peakBadge.append("text").attr("text-anchor", "middle").attr("y", 4).attr("fill", "#fff").attr("font-size", "10px").attr("font-weight", "bold").text("发案高峰");
     peakGroup.transition().delay(1600).duration(500).style("opacity", 1);
 
     const valleyGroup = svg.append("g").attr("class", "valley-mark").style("opacity", 0);
     valleyGroup.append("circle").attr("cx", x(xAccessor(valleyData))).attr("cy", y(yAccessor(valleyData))).attr("r", 8).attr("fill", "none").attr("stroke", "#10b981").attr("stroke-width", 2).attr("class", "animate-ping");
-    valleyGroup.append("text").attr("x", x(xAccessor(valleyData))).attr("y", y(yAccessor(valleyData)) + 25).attr("text-anchor", "middle").attr("fill", "#10b981").attr("font-size", "10px").attr("font-weight", "bold").text("发案低谷");
+    const valleyBadge = valleyGroup.append("g").attr("transform", `translate(${x(xAccessor(valleyData))}, ${y(yAccessor(valleyData)) + 25})`);
+    valleyBadge.append("rect").attr("x", -28).attr("y", -10).attr("width", 56).attr("height", 20).attr("rx", 10).attr("fill", "#10b981").attr("filter", "drop-shadow(0 2px 4px rgba(16,185,129,0.3))");
+    valleyBadge.append("text").attr("text-anchor", "middle").attr("y", 4).attr("fill", "#fff").attr("font-size", "10px").attr("font-weight", "bold").text("发案低谷");
     valleyGroup.transition().delay(1800).duration(500).style("opacity", 1);
 
     const dots = svg.selectAll(".dot").data(data).enter().append("circle").attr("cx", d => x(xAccessor(d))).attr("cy", d => y(yAccessor(d))).attr("r", 0).attr("fill", color).attr("stroke", "#fff").attr("stroke-width", 2).style("cursor", "pointer");
@@ -228,35 +238,49 @@ export function drawDonutChart(containerId, data, options = {}) {
         .attr("transform", `translate(${width / 2}, ${height / 2})`);
 
     const pie = d3.pie().value(d => d.cnt).sort(null).padAngle(0.04);
-    const arc = d3.arc().innerRadius(radius * 0.65).outerRadius(radius * 0.9).cornerRadius(12);
-    const arcHover = d3.arc().innerRadius(radius * 0.6).outerRadius(radius * 0.95).cornerRadius(12);
+    const arc = d3.arc().innerRadius(radius * 0.72).outerRadius(radius * 0.9).cornerRadius(10);
+    const arcHover = d3.arc().innerRadius(radius * 0.7).outerRadius(radius * 0.94).cornerRadius(10);
+
+    const defs = svg.append("defs");
+    data.forEach((d, i) => {
+        const grad = defs.append("linearGradient")
+            .attr("id", `donut-grad-${containerId}-${i}`)
+            .attr("x1", "0%").attr("y1", "0%")
+            .attr("x2", "100%").attr("y2", "100%");
+        grad.append("stop").attr("offset", "0%").attr("stop-color", d3.rgb(d.color).brighter(0.4));
+        grad.append("stop").attr("offset", "100%").attr("stop-color", d.color);
+    });
+
+    const total = d3.sum(data, x => x.cnt);
+    const defaultItem = data.reduce((max, curr) => (curr.cnt > max.cnt ? curr : max), data[0] || {label: "", cnt: 0});
+    const centerLabel = options.centerLabel || defaultItem.label;
+    const centerValue = options.centerValue || (total > 0 ? (defaultItem.cnt / total * 100).toFixed(0) + "%" : "0%");
+
+    const textGroup = svg.append("g").attr("text-anchor", "middle").style("pointer-events", "none");
+    const labelText = textGroup.append("text").attr("y", -10).style("font-size", "14px").style("font-weight", "500").style("fill", "#94a3b8").text(centerLabel);
+    const valueText = textGroup.append("text").attr("y", 25).style("font-size", "32px").style("font-weight", "900").style("fill", "#1e293b").style("letter-spacing", "-0.025em").text(centerValue);
 
     const arcs = svg.selectAll(".arc-group").data(pie(data)).enter().append("g").attr("class", "arc-group");
 
-    const paths = arcs.append("path").attr("d", arc).attr("fill", d => d.data.color).style("cursor", "pointer").style("filter", "drop-shadow(0 4px 6px rgba(0,0,0,0.1))")
+    const paths = arcs.append("path").attr("d", arc).attr("fill", (d, i) => `url(#donut-grad-${containerId}-${i})`).style("cursor", "pointer").style("filter", "drop-shadow(0 4px 6px rgba(0,0,0,0.1))")
         .on("mouseover", (e, d) => {
-            const total = d3.sum(data, x => x.cnt);
             const percent = (d.data.cnt / total * 100).toFixed(1);
             showTooltip(`<b>${d.data.label}</b><br/>总数: ${d.data.cnt.toLocaleString()}<br/>比例: ${percent}%`, e.pageX, e.pageY);
             d3.select(e.currentTarget).transition().duration(400).ease(d3.easeElastic).attr("d", arcHover).style("opacity", 0.9);
+            labelText.text(d.data.label);
+            valueText.text(Math.round(d.data.cnt / total * 100) + "%");
         })
         .on("mouseout", (e, d) => {
             hideTooltip();
             d3.select(e.currentTarget).transition().duration(400).attr("d", arc).style("opacity", 1);
+            labelText.text(centerLabel);
+            valueText.text(centerValue);
         });
 
     paths.transition().duration(1200).delay((d, i) => i * 150).attrTween("d", function(d) {
         const interpolate = d3.interpolate({ startAngle: 0, endAngle: 0 }, d);
         return function(t) { return arc(interpolate(t)); };
     });
-
-    const total = d3.sum(data, x => x.cnt);
-    const centerLabel = options.centerLabel || data[0].label;
-    const centerValue = options.centerValue || (data[0].cnt / total * 100).toFixed(0) + "%";
-
-    const textGroup = svg.append("g").attr("text-anchor", "middle");
-    textGroup.append("text").attr("y", -10).style("font-size", "14px").style("font-weight", "500").style("fill", "#94a3b8").text(centerLabel);
-    textGroup.append("text").attr("y", 25).style("font-size", "32px").style("font-weight", "900").style("fill", "#1e293b").style("letter-spacing", "-0.025em").text(centerValue);
 }
 
 export function drawDistrictChoroplethMap(containerId, geojson, data, valueKey, valueLabel, options = {}) {
@@ -299,11 +323,30 @@ export function drawDistrictChoroplethMap(containerId, geojson, data, valueKey, 
     const districtShadow = defs.append("filter").attr("id", `shadow-${containerId}`);
     districtShadow.append("feDropShadow").attr("dx", 0).attr("dy", 4).attr("stdDeviation", 4).attr("flood-color", "#7c3aed").attr("flood-opacity", 0.1);
 
-    svg.append("g").selectAll("path").data(features).enter().append("path").attr("data-district-shape", "1").attr("data-district", feature => String(feature.properties?.district || "").trim().replace(/^0+/, '')).attr("d", path).attr("fill", feature => {
+    const mapGroup = svg.append("g");
+
+    const zoom = d3.zoom()
+        .scaleExtent([0.5, 8])
+        .on("zoom", (e) => {
+            mapGroup.attr("transform", e.transform);
+            
+            // 反向缩放文字，保持文字大小恒定
+            mapGroup.selectAll('[data-district-label]').each(function(item) {
+                if (item && item.centroid) {
+                    const cx = item.centroid[0];
+                    const cy = item.centroid[1] + 4;
+                    d3.select(this).attr("transform", `translate(${cx}, ${cy}) scale(${1 / e.transform.k}) translate(${-cx}, ${-cy})`);
+                }
+            });
+        });
+
+    svg.call(zoom);
+
+    mapGroup.append("g").selectAll("path").data(features).enter().append("path").attr("data-district-shape", "1").attr("data-district", feature => String(feature.properties?.district || "").trim().replace(/^0+/, '')).attr("d", path).attr("fill", feature => {
         const district = String(feature.properties?.district || "").trim().replace(/^0+/, '');
         const value = dataMap.get(district);
         return Number.isFinite(value) ? colorScale(value) : "#e2e8f0";
-    }).attr("stroke", "#ffffff").attr("stroke-width", 1.5).attr("filter", `url(#shadow-${containerId})`).style("cursor", "pointer")
+    }).attr("stroke", "#ffffff").attr("stroke-width", 1.5).attr("vector-effect", "non-scaling-stroke").attr("filter", `url(#shadow-${containerId})`).style("cursor", "pointer")
     .on("mouseover", (e, feature) => {
         const district = String(feature.properties?.district || "").trim().replace(/^0+/, '');
         const districtName = String(feature.properties?.district_name || district).trim();
@@ -315,7 +358,7 @@ export function drawDistrictChoroplethMap(containerId, geojson, data, valueKey, 
         options.onSelect?.(district);
     });
 
-    svg.append("g").selectAll("text").data(labelFeatures).enter().append("text").attr("data-district-label", "1").attr("data-district", item => item.district).attr("x", item => item.centroid[0]).attr("y", item => item.centroid[1] + 4).attr("text-anchor", "middle").style("font-size", "12px").style("font-weight", "800").style("pointer-events", "none").style("fill", item => item.value >= (minValue + maxValue) * 0.4 ? "#ffffff" : "#4c1d95").attr("stroke", item => item.value >= (minValue + maxValue) * 0.4 ? "#4c1d95" : "#ffffff").attr("stroke-width", 2).attr("paint-order", "stroke").text(item => item.district);
+    mapGroup.append("g").selectAll("text").data(labelFeatures).enter().append("text").attr("data-district-label", "1").attr("data-district", item => item.district).attr("x", item => item.centroid[0]).attr("y", item => item.centroid[1] + 4).attr("text-anchor", "middle").style("font-size", "12px").style("font-weight", "800").style("pointer-events", "none").style("fill", item => item.value >= (minValue + maxValue) * 0.4 ? "#ffffff" : "#4c1d95").attr("stroke", item => item.value >= (minValue + maxValue) * 0.4 ? "#4c1d95" : "#ffffff").attr("stroke-width", 2).attr("paint-order", "stroke").text(item => item.district);
 
     const legend = svg.append("g").attr("transform", `translate(${width - 150}, 40)`);
     legend.append("rect").attr("width", 110).attr("height", 184).attr("rx", 18).attr("fill", "#ffffff").attr("fill-opacity", 0.9).attr("stroke", "#e2e8f0");
@@ -580,7 +623,15 @@ export function setDistrictFollowState(mapContainerId, listContainerId, activeDi
     mapContainer.selectAll('[data-district-shape]').each(function() {
         const district = this.getAttribute('data-district');
         const isActive = district === activeDistrict, isLocked = district === lockedDistrict;
-        d3.select(this).style('opacity', activeDistrict ? (isActive ? 1 : 0.72) : 1).attr('stroke', isActive ? '#4c1d95' : isLocked ? '#7c3aed' : '#ffffff').attr('stroke-width', isActive ? 3 : isLocked ? 2.2 : 1.5);
+        const el = d3.select(this);
+        el.style('opacity', activeDistrict ? (isActive ? 1 : 0.72) : 1)
+          .attr('stroke', isActive ? '#4c1d95' : isLocked ? '#7c3aed' : '#ffffff')
+          .attr('stroke-width', isActive ? 3 : isLocked ? 2.2 : 1.5);
+        
+        // 将当前高亮或选中的警区提升到最顶层，防止粗边框被相邻警区遮挡
+        if (isActive || isLocked) {
+            el.raise();
+        }
     });
     mapContainer.selectAll('[data-district-label]').each(function() {
         const district = this.getAttribute('data-district');

@@ -157,12 +157,42 @@ async function toggleAnalysis(type, el) {
                     </div>
                     <div id="detail-chart-1" class="h-[450px] w-full"></div>
                 </div>
-                <div class="glass-card p-8">
+                <div class="glass-card p-8 flex flex-col">
                     <h3 class="text-lg font-bold text-slate-800 mb-6">时段汇总分析</h3>
                     <div id="detail-chart-2" class="h-[250px] w-full mb-6"></div>
-                    <div class="space-y-4">
-                        <div class="p-4 rounded-2xl bg-rose-50/50 border border-rose-100"><div class="text-xs text-rose-400 mb-1">高危时段 (22:00 - 02:00)</div><div id="hourly-danger-val" class="text-lg font-bold text-rose-600">--</div></div>
-                        <div class="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100"><div class="text-xs text-emerald-400 mb-1">相对安全时段 (04:00 - 08:00)</div><div id="hourly-safe-val" class="text-lg font-bold text-emerald-600">--</div></div>
+                    <div class="space-y-4 mt-auto">
+                        <div class="p-5 rounded-2xl bg-gradient-to-br from-rose-50 to-white border border-rose-100 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-500 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold text-rose-400 uppercase tracking-wider mb-0.5">高危时段</div>
+                                    <div class="text-[11px] text-slate-400">22:00 - 02:00</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div id="hourly-danger-val" class="text-xl font-black text-rose-600">--</div>
+                            </div>
+                        </div>
+                        <div class="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-500 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-0.5">相对安全</div>
+                                    <div class="text-[11px] text-slate-400">04:00 - 08:00</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div id="hourly-safe-val" class="text-xl font-black text-emerald-600">--</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `,
@@ -217,7 +247,7 @@ async function toggleAnalysis(type, el) {
                     return {...item, district: dId, district_name: districtNameMap.get(dId) || `警区 ${dId}`, cnt: Number(item.cnt)};
                 }).filter(item => item.district && Number.isFinite(item.cnt)).sort((a, b) => b.cnt - a.cnt);
 
-                let lockedDistrict = districtData[0]?.district || null, hoverDistrict = null;
+                let lockedDistrict = null, hoverDistrict = null;
                 const syncState = () => {
                     const active = hoverDistrict || lockedDistrict;
                     charts.setDistrictFollowState("detail-chart-1", "district-top-list", active, lockedDistrict);
@@ -417,7 +447,7 @@ async function toggleAnalysis(type, el) {
                     return {...item, district: dId, district_name: districtNameMap.get(dId) || `警区 ${dId}`, theft_cnt: Number(item.theft_cnt)};
                 }).filter(item => item.district && Number.isFinite(item.theft_cnt)).sort((a, b) => b.theft_cnt - a.theft_cnt);
 
-                let lockedDistrict = theftData[0]?.district || null, hoverDistrict = null;
+                let lockedDistrict = null, hoverDistrict = null;
                 const syncState = () => {
                     const active = hoverDistrict || lockedDistrict;
                     charts.setDistrictFollowState("detail-chart-1", "theft-top-list", active, lockedDistrict);

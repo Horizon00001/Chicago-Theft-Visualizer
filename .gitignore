@@ -24,6 +24,7 @@ Thumbs.db
 # Large data files
 archive/
 *.csv
+!sample_data.csv
 *.dbf
 *.shp
 *.shx

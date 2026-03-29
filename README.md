@@ -40,7 +40,18 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. 环境变量 | Configuration
+### 3. 数据库初始化 | Database Setup
+1. 安装 PostgreSQL 并创建一个数据库（如 `chicago_crime`）。
+2. 使用提供的 `schema.sql` 初始化表结构：
+   ```bash
+   psql -U your_username -d chicago_crime -f schema.sql
+   ```
+3. (可选) 导入 `sample_data.csv` 进行测试：
+   ```bash
+   psql -U your_username -d chicago_crime -c "\copy crimes FROM 'sample_data.csv' WITH (FORMAT csv, HEADER true);"
+   ```
+
+### 4. 环境变量 | Configuration
 复制 `.env.example` 为 `.env` 并填入你的数据库连接信息：
 ```bash
 cp .env.example .env
